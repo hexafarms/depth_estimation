@@ -1,44 +1,70 @@
 import yaml
-import glob
-import os
 from pathlib import Path
-from typing import List
-import re
+import os
+from typing import List, Dict
+from loguru import logger
+from hexa_depth.helpers import *
+from hexa_depth.instance import HexaStereo, HexaDepth
 
-def checkCode(file: str, codes: List[str]):
-    if file in codes:
-        return True
-    else:
-        return False
+def sortFiles(LOCAL_PATH: str, setup: Dict) -> List[Dict[str, List[Path]]]:
+    imgFiles = Path(LOCAL_PATH).glob('*.jpg')
 
-def extractCode(file_name: str):
-    """Extract camera code from file name. """
-    camRegex = re.compile(r'\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w')  # Match the Code Pattern.
-    return camRegex.search(file_name)[0]
-
-def main(LOCAL_PATH, DEPTH, setup):
-    #TODO: split list based on key, segment based on time. A nested list has two images. (if only one, then ignore it.)
-    #TODO: work with RGB and IR. (See what's better)
-    imgs = glob.glob(os.path.join(LOCAL_PATH, '*.jpg'))
-
-    filtered_imgs = [[]]*len(setup)
+    imgFilesPerLocation = [[]]*len(setup) # Make nested list with the number of cameras.
 
     for i, (key, val) in enumerate(setup.items()):
-        #TODO check if image file is within camera code
+        logger.info(f"Image files of {key} are searched.")
+        camera_codes = val.get('camera')
+
+        for imgFile in imgFiles:
+            if isCameraInCodes(imgFile, camera_codes):
+                imgFilesPerLocation[i].append(imgFile)
         
-        if checkCode()
-        filtered_imgs[i].append()
+    filesByTime = [sortFilesByTime(i) for i in imgFilesPerLocation]
+    filesByColor = []
+
+    for filesPerCodes in filesByTime:
+        for filesPerTime in filesPerCodes:
+            fileByColor = sortFilesByColor(filesPerTime)
+            if fileByColor is None:
+                continue
+            else:
+                filesByColor.append(fileByColor)
+    return filesByColor
+
+def findDistance(setup: Dict, codes: List) -> int:
+    for _, val in setup.items():
+
+        if sorted(val.get('camera')) == sorted(codes):
+            return val.get('distance')
+    
+def findDefaultDepth(setup: Dict, codes: List) -> int:
+    for _, val in setup.items():
+
+        if sorted(val.get('camera')) == sorted(codes):
+            return val.get('depth')
+    
+def main(LOCAL_PATH, setup):    
+    filesByColor = sortFiles(LOCAL_PATH, setup)
+    depth_objects = []
+
+    for fileByColor in filesByColor:
         
-    imgs.sort(key = lambda x: Path(x).basename.split('-')[-1])
+        cam_codes = fileByColor['codes']
+        
+        depth_objects.append(
+            HexaStereo(
+                distance=findDistance(setup, cam_codes), 
+                cam_codes=cam_codes, 
+                base_depth=findDefaultDepth(setup, cam_codes)).registerRGB(fileByColor['rgb']).registerIR(fileByColor['ir'])
+        )
     print('h')
-    pass
 
 if __name__ == "__main__":
-    
+    #TODO: Build same pipeline using click library. (using system arguments.)
+         
     LOCAL_PATH = "/media/huijo/SSD_Storage/S3_Download/ecf"
-    DEPTH = 180 # mm
 
     with open('credential/hexa.yaml', 'r') as stream:
         setup = yaml.safe_load(stream)
 
-    main(LOCAL_PATH, DEPTH, setup)
+    main(LOCAL_PATH, setup)
