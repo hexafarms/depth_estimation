@@ -1,10 +1,9 @@
 import yaml
 from pathlib import Path
-import os
 from typing import List, Dict
 from loguru import logger
 from hexa_depth.helpers import *
-from hexa_depth.instance import HexaStereo, HexaDepth
+from hexa_depth.instance import HexaPallelDepth
 
 def sortFiles(LOCAL_PATH: str, setup: Dict) -> List[Dict[str, List[Path]]]:
     imgFiles = Path(LOCAL_PATH).glob('*.jpg')
@@ -52,12 +51,13 @@ def main(LOCAL_PATH, setup):
         cam_codes = fileByColor['codes']
         
         depth_objects.append(
-            HexaStereo(
+            HexaPallelDepth(
                 distance=findDistance(setup, cam_codes), 
                 cam_codes=cam_codes, 
-                base_depth=findDefaultDepth(setup, cam_codes)).registerRGB(fileByColor['rgb']).registerIR(fileByColor['ir'])
+                base_depth=findDefaultDepth(setup, cam_codes)
+                ).registerRGB(fileByColor['rgb']).registerIR(fileByColor['ir']).computeDisparity()
         )
-    print('h')
+
 
 if __name__ == "__main__":
     #TODO: Build same pipeline using click library. (using system arguments.)
